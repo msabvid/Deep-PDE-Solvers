@@ -130,6 +130,25 @@ class BSDE_solver(nn.Module):
             
         return vOld, S_old, error
 
+
+def g(S):
+    """
+    Exchange options
+    """
+    zeros = torch.zeros(S.size()[0], 1, device=device)
+    dim = S.size()[1]
+    if dim>1:
+        # terminal condition in d>1 dimensions
+        m = torch.cat([zeros, (S[:,0]-1/(dim-1)*torch.sum(S[:,1:],1)).view(-1,1)],1)
+    else:
+        # terminal condition in d=1 dimension
+        m = torch.cat([zeros, (S[:,0]).view(-1,1)],1) 
+    #m = torch.cat([zeros, (S[:,0]-S[:,1]).view(-1,1)],1) 
+    output = torch.max(m, 1)    
+    return output[0]
+
+
+
 def train():
     n_iter = 20000   
     for it in range(n_iter):
