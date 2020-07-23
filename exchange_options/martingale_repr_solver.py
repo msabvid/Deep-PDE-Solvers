@@ -13,7 +13,7 @@ import argparse
 class Net(nn.Module):
     
     def __init__(self, dim, nOut, n_layers, vNetWidth, activation = "relu"):
-        super(Net_timestep_big, self).__init__()
+        super(Net, self).__init__()
         self.dim = dim
         self.nOut = nOut
         
