@@ -77,38 +77,42 @@ def visualize(T,
         n_steps,
         d,
         mu,
+        sigma,
         ffn_hidden,
         base_dir,
         ):
     import matplotlib.animation as animation
     import matplotlib.pyplot as plt
+    import types
     assert d==2, "visualization is only implemented for 2-dimensional PDE"
     ts = torch.linspace(0,T,n_steps+1, device=device)
     option = Exchange()
     fbsde = FBSDE(d, mu, sigma, ffn_hidden)
     checkpoint = torch.load(os.path.join(base_dir, "result.pth.tar"), map_location="cpu")
-    fbsde.load_state_dict(checkpoint[|"state"])
+    fbsde.load_state_dict(checkpoint["state"])
 
     with torch.no_grad():
         x0 = torch.linspace(0.8,1.2,500)
         x1 = torch.linspace(0.8,1.2,500)
         X0,X1 = torch.meshgrid([x0,x1])
         X = torch.cat([X0.reshape(-1,1), X1.reshape(-1,1)],1)
-        X = X.unsqueeze(1).repeat(1,len(ts),1)
-        t_coarse = ts[::n_steps//10].reshape(1,-1,1)
-        t = t_coarse.repeat(X.shape[0],1,1)
+        t_coarse = ts[::n_steps//10]
+        X = X.unsqueeze(1).repeat(1,len(t_coarse),1)
+        t = t_coarse.reshape(1,-1,1).repeat(X.shape[0],1,1)
         tx = torch.cat([t,X],2)
         Y = fbsde.f(tx)
     ims = []
-    for idx, t in enumerate():
-        X0 = X0.numpy()
-        X1 = X1.numpy()
+    fig = plt.figure()
+    X0 = X0.numpy()
+    X1 = X1.numpy()
+    for idx, t in enumerate(t_coarse):
         Z = Y[:,idx,:].numpy().reshape(500,500) 
-        im = plt.contourf(X0,X1,Z,levels=20)
-        ims.append([im,])
-        anim.save(os.path.join(base_dir, "contourf.mp4")) 
-        anim.save(os.path.join(base_dir, "contourf.gif"), dpi=80, writer='imagemagick') 
-        
+        im = plt.contourf(X0,X1,Z,levels=100)
+        ims.append(im.collections)
+        plt.savefig(os.path.join(base_dir, "contourf{}.png".format(idx)))
+    anim = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000)
+    anim.save(os.path.join(base_dir, "contourf.mp4")) 
+    anim.save(os.path.join(base_dir, "contourf.gif"), dpi=80, writer='imagemagick') 
         
 
 if __name__ == "__main__":
@@ -130,6 +134,7 @@ if __name__ == "__main__":
     parser.add_argument('--sigma', default=0.3, type=float, help="risk free rate")
     parser.add_argument('--method', default="bsde", type=str, help="learning method", choices=["bsde","orthogonal"])
     
+    parser.add_argument('--visualize', action='store_true', default=False)
 
     args = parser.parse_args()
     
@@ -142,15 +147,24 @@ if __name__ == "__main__":
     if not os.path.exists(results_path):
         os.makedirs(results_path)
 
-    train(T=args.T,
-        n_steps=args.n_steps,
-        d=args.d,
-        mu=args.mu,
-        sigma=args.sigma,
-        ffn_hidden=args.ffn_hidden,
-        max_updates=args.max_updates,
-        batch_size=args.batch_size,
-        base_dir=results_path,
-        device=device,
-        method=args.method
-        )
+    if args.visualize:
+        visualize(T=args.T,
+           n_steps=args.n_steps,
+           d=args.d,
+           mu=args.mu,
+           sigma=args.sigma,
+           ffn_hidden=args.ffn_hidden,
+           base_dir=results_path)
+    else:
+        train(T=args.T,
+            n_steps=args.n_steps,
+            d=args.d,
+            mu=args.mu,
+            sigma=args.sigma,
+            ffn_hidden=args.ffn_hidden,
+            max_updates=args.max_updates,
+            batch_size=args.batch_size,
+            base_dir=results_path,
+            device=device,
+            method=args.method
+            )

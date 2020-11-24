@@ -26,3 +26,8 @@ Training the network using the BSDE method and the Black-Scholes PDE:
 ```
 python pde_BlackScholes_exchange.py --use_cuda --device 0
 ```
+
+
+<p align="center">
+<img align="middle" src="./numerical_results/BS/bsde/contourf.gif" alt="exchange" width="300" height="250" />
+</p>
