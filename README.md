@@ -2,7 +2,7 @@
 
 Code of numerical experiments in https://arxiv.org/abs/1810.05094.
  
-               @misc{vidales2019unbiased,
+       @misc{vidales2019unbiased,
               title={Unbiased deep solvers for parametric PDEs}, 
               author={Marc Sabate Vidales and David Siska and Lukasz Szpruch},
               year={2019},
