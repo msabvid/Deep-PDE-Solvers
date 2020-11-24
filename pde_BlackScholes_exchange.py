@@ -92,8 +92,8 @@ def visualize(T,
     fbsde.load_state_dict(checkpoint["state"])
 
     with torch.no_grad():
-        x0 = torch.linspace(0.8,1.2,500)
-        x1 = torch.linspace(0.8,1.2,500)
+        x0 = torch.linspace(0.6,1.4,500)
+        x1 = torch.linspace(0.6,1.4,500)
         X0,X1 = torch.meshgrid([x0,x1])
         X = torch.cat([X0.reshape(-1,1), X1.reshape(-1,1)],1)
         t_coarse = ts[::n_steps//10]
@@ -110,7 +110,7 @@ def visualize(T,
         im = plt.contourf(X0,X1,Z,levels=100)
         ims.append(im.collections)
         plt.savefig(os.path.join(base_dir, "contourf{}.png".format(idx)))
-    anim = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000)
+    anim = animation.ArtistAnimation(fig, ims, interval=1000, blit=True, repeat_delay=3000)
     anim.save(os.path.join(base_dir, "contourf.mp4")) 
     anim.save(os.path.join(base_dir, "contourf.gif"), dpi=80, writer='imagemagick') 
         
