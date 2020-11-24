@@ -22,12 +22,30 @@ In addition, we de-bias the approximation of the solution of the PDE by leveragi
 
 ## Running the code
 
-Training the network using the BSDE method and the Black-Scholes PDE:
+Pricing exchange options in the Black-Scholes world by solving the 2-dimensional PDE:
 ```
-python pde_BlackScholes_exchange.py --use_cuda --device 0
+python pde_BlackScholes_exchange.py --use_cuda --device 0 --d 2
 ```
-
+and visualizing the results
+```
+python pde_BlackScholes_exchange.py --d 2 --visualize
+```
 
 <p align="center">
 <img align="middle" src="./numerical_results/BS/bsde/contourf.gif" alt="exchange" width="300" height="250" />
+</p>
+
+
+
+Solving the 2-dimensional PDE associated to Brownian motion:
+```
+python pde_Brownian.py --use_cuda --device 0 --d 2
+```
+and visualizing the results
+```
+python pde_Brownian.py --d 2 --visualize
+```
+
+<p align="center">
+<img align="middle" src="./numerical_results/Brownian/bsde/contourf.gif" alt="exchange" width="300" height="250" />
 </p>
