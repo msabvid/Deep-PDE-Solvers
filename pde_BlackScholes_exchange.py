@@ -107,10 +107,10 @@ def visualize(T,
     X1 = X1.numpy()
     for idx, t in enumerate(t_coarse):
         Z = Y[:,idx,:].numpy().reshape(500,500) 
-        im = plt.contourf(X0,X1,Z,levels=100)
+        im = plt.contourf(X0,X1,Z,levels=80)
         ims.append(im.collections)
-        plt.savefig(os.path.join(base_dir, "contourf{}.png".format(idx)))
-    anim = animation.ArtistAnimation(fig, ims, interval=1000, blit=True, repeat_delay=3000)
+        #plt.savefig(os.path.join(base_dir, "contourf{}.png".format(idx)))
+    anim = animation.ArtistAnimation(fig, ims, interval=400, repeat_delay=3000)
     anim.save(os.path.join(base_dir, "contourf.mp4")) 
     anim.save(os.path.join(base_dir, "contourf.gif"), dpi=80, writer='imagemagick') 
         
