@@ -37,7 +37,7 @@ python pde_BlackScholes_exchange.py --d 2 --visualize
 
 
 
-Solving the 2-dimensional PDE associated to Brownian motion:
+Solving the 2-dimensional Heat equation with time reversed
 ```
 python pde_Brownian.py --use_cuda --device 0 --d 2
 ```
