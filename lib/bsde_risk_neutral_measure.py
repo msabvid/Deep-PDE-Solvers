@@ -112,7 +112,7 @@ class FBSDE(nn.Module):
         device = x.device
         batch_size = x.shape[0]
         t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
-        tx = torch.cat([t,path_signature],2)
+        tx = torch.cat([t,x],2)
         with torch.no_grad():
             Z = self.dfdx(tx) # (batch_size, L, dim)
         stoch_int = 0
