@@ -92,7 +92,7 @@ class FBSDE(nn.Module):
             loss += loss_fn(pred, target)
         return loss, Y, payoff
 
-    def unbiased_price(self, ts: torch.Tensor, x0:torch.Tensor, option: BaseOption, MC_samples: int):
+    def unbiased_price(self, ts: torch.Tensor, x0:torch.Tensor, option: BaseOption, MC_samples: int, method: str = 'bsde'):
         """
         We calculate an unbiased estimator of the price at time t=0 (for now) using Monte Carlo, and the stochastic integral as a control variate
         Parameters
@@ -112,9 +112,19 @@ class FBSDE(nn.Module):
         device = x.device
         batch_size = x.shape[0]
         t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
-        tx = torch.cat([t,x],2)
-        with torch.no_grad():
-            Z = self.dfdx(tx) # (batch_size, L, dim)
+        tx = torch.cat([t,x],2) # (batch_size, L, dim)
+        if method == 'bsde':
+            with torch.no_grad():
+                Z = self.dfdx(tx) # (batch_size, L, dim)
+        elif method == 'l2-proj':
+            tx.requires_grad_(True)
+            Z = []
+            for j in range(tx.shape[1]):
+                Y = self.f(tx[:,j,:]) # (batch_size, 1)
+                Z.append(torch.autograd.grad(Y.sum(), tx[:,j,1:]))
+            Z = torch.stack(Z, 1)
+        else:
+            raise ValueError('Unknown method {}'.format(method))
         stoch_int = 0
         for idx,t in enumerate(ts):
             discount_factor = torch.exp(-self.mu*t)
