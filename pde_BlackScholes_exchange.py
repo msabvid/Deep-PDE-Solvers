@@ -10,12 +10,15 @@ from lib.bsde_risk_neutral_measure import FBSDE_BlackScholes as FBSDE
 from lib.options import Exchange
 
 
-def sample_x0(batch_size, dim, device):
-    sigma = 0.3
-    mu = 0.08
-    tau = 0.1
-    z = torch.randn(batch_size, dim, device=device)
-    x0 = torch.exp((mu-0.5*sigma**2)*tau + 0.3*math.sqrt(tau)*z) # lognormal
+def sample_x0(batch_size, dim, device, lognormal: Bool = True):
+    if lognormal:
+        sigma = 0.3
+        mu = 0.08
+        tau = 0.1
+        z = torch.randn(batch_size, dim, device=device)
+        x0 = torch.exp((mu-0.5*sigma**2)*tau + 0.3*math.sqrt(tau)*z) # lognormal
+    else:
+        x0 = torch.ones(batch_size, dim, device=device)
     return x0
     
 
@@ -25,6 +28,7 @@ def write(msg, logfile, pbar):
         f.write(msg)
         f.write("\n")
 
+def 
 
 def train(T,
         n_steps,
@@ -50,7 +54,7 @@ def train(T,
     losses = []
     for idx in range(max_updates):
         optimizer.zero_grad()
-        x0 = sample_x0(batch_size, d, device)
+        x0 = sample_x0(batch_size, d, device, lognormal=True)
         if method=="bsde":
             loss, _, _ = fbsde.bsdeint(ts=ts, x0=x0, option=option)
         else:
@@ -70,6 +74,7 @@ def train(T,
     
     result = {"state":fbsde.state_dict(),
             "loss":losses}
+
     torch.save(result, os.path.join(base_dir, "result.pth.tar"))
 
 
@@ -132,7 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_steps', default=100, type=int, help="number of steps in time discrretisation")
     parser.add_argument('--mu', default=0.05, type=float, help="risk free rate")
     parser.add_argument('--sigma', default=0.3, type=float, help="risk free rate")
-    parser.add_argument('--method', default="bsde", type=str, help="learning method", choices=["bsde","orthogonal"])
+    parser.add_argument('--method', default="bsde", type=str, help="learning method", choices=["bsde","l2-proj"])
     
     parser.add_argument('--visualize', action='store_true', default=False)
 
@@ -143,7 +148,7 @@ if __name__ == "__main__":
     else:
         device="cpu"
     
-    results_path = os.path.join(args.base_dir, "BS", args.method)
+    results_path = os.path.join(args.base_dir, "BS", "exchange_{}".format(args.d), args.method)
     if not os.path.exists(results_path):
         os.makedirs(results_path)
 

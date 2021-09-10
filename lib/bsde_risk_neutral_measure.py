@@ -63,7 +63,7 @@ class FBSDE(nn.Module):
         return loss, Y, payoff
             
             
-    def conditional_expectation(self, ts: torch.Tensor, x0: torch.Tensor, option: BaseOption): 
+    def l2_proj(self, ts: torch.Tensor, x0: torch.Tensor, option: BaseOption): 
         """
         Parameters
         ----------
@@ -116,7 +116,7 @@ class FBSDE(nn.Module):
         if method == 'bsde':
             with torch.no_grad():
                 Z = self.dfdx(tx) # (batch_size, L, dim)
-        elif method == 'l2-proj':
+        elif method == 'l2_proj':
             tx.requires_grad_(True)
             Z = []
             for j in range(tx.shape[1]):
@@ -130,7 +130,7 @@ class FBSDE(nn.Module):
             discount_factor = torch.exp(-self.mu*t)
             stoch_int += discount_factor * torch.sum(Z[:,idx,:]*brownian_increments[:,idx,:], 1, keepdim=True)
         
-        return payoff, torch.exp(-self.mu*ts[-1])*payoff-stoch_int # stoch_int has expected value 0, thus it doesn't add any bias to the MC estimator, and it is correlated with payoff
+        return torch.exp(-self.mu*ts[-1])*payoff, torch.exp(-self.mu*ts[-1])*payoff-stoch_int # stoch_int has expected value 0, thus it doesn't add any bias to the MC estimator, and it is correlated with payoff
 
 
 
