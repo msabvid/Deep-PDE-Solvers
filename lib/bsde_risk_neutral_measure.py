@@ -117,11 +117,13 @@ class FBSDE(nn.Module):
             with torch.no_grad():
                 Z = self.dfdx(tx) # (batch_size, L, dim)
         elif method == 'l2_proj':
-            tx.requires_grad_(True)
+            #tx.requires_grad_(True)
             Z = []
             for j in range(tx.shape[1]):
-                Y = self.f(tx[:,j,:]) # (batch_size, 1)
-                Z.append(torch.autograd.grad(Y.sum(), tx[:,j,1:]))
+                input_ = tx[:,j,:]
+                input_.requires_grad_(True)
+                Y = self.f(input_) # (batch_size, 1)
+                Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0][:,1:])
             Z = torch.stack(Z, 1)
         else:
             raise ValueError('Unknown method {}'.format(method))
