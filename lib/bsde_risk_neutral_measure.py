@@ -17,8 +17,8 @@ class FBSDE(nn.Module):
         self.mu = mu # risk free rate
         
         if net_per_timestep and ts is not None:
-            self.f = FFN_net_per_timestep(sizes=[d+1]+ffn_hidden+[1], ts=ts)
-            self.dfdx = FFN_net_per_timestep(sizes = [d+1]+ffn_hidden+[2], ts=ts)
+            self.f = FFN_net_per_timestep(sizes=[d]+ffn_hidden+[1], ts=ts)
+            self.dfdx = FFN_net_per_timestep(sizes = [d]+ffn_hidden+[2], ts=ts)
         else:
             self.f = FFN(sizes = [d+1]+ffn_hidden+[1]) # +1 is for time
             self.dfdx = FFN(sizes = [d+1]+ffn_hidden+[2])
@@ -46,7 +46,7 @@ class FBSDE(nn.Module):
         payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
         device = x.device
         batch_size = x.shape[0]
-        if isinstance(self.f, nn.ModuleList):
+        if isinstance(self.f, FFN_net_per_timestep):
             t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
             input_ = torch.cat([t,x],2)
         else:
@@ -85,7 +85,7 @@ class FBSDE(nn.Module):
         payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
         device = x.device
         batch_size = x.shape[0]
-        if isinstance(self.f, nn.ModuleList): 
+        if isinstance(self.f, FFN_net_per_timestep): 
             input_ = x
         else:
             t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
@@ -128,14 +128,14 @@ class FBSDE(nn.Module):
         elif method == 'l2_proj':
             #tx.requires_grad_(True)
             Z = []
-            for j in range(tx.shape[1]):
-                if isinstance(Y, nn.ModuleList):
-                    input_ = x[x:,j,:]
+            for idt, t in enumerate(ts[:-1]):
+                if isinstance(self.f, FFN_net_per_timestep):
+                    input_ = x[:,idt,:]
                     input_.requires_grad_(True)
-                    Y = self.f(input_, j)
+                    Y = self.f(input_, idt)
                     Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0])
                 else:
-                    input_ = tx[:,j,:]
+                    input_ = tx[:,idt,:]
                     input_.requires_grad_(True)
                     Y = self.f(input_) # (batch_size, 1)
                     Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0][:,1:])
@@ -143,7 +143,7 @@ class FBSDE(nn.Module):
         else:
             raise ValueError('Unknown method {}'.format(method))
         stoch_int = 0
-        for idx,t in enumerate(ts):
+        for idx,t in enumerate(ts[:-1]):
             discount_factor = torch.exp(-self.mu*t)
             stoch_int += discount_factor * torch.sum(Z[:,idx,:]*brownian_increments[:,idx,:], 1, keepdim=True)
         

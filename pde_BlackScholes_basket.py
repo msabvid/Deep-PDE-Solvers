@@ -58,6 +58,7 @@ def train(T,
     pbar = tqdm.tqdm(total=max_updates)
     losses = []
     for idx in range(max_updates):
+        fbsde.train()
         optimizer.zero_grad()
         x0 = sample_x0(batch_size, d, device, lognormal=False)
         if method=="bsde":
@@ -69,6 +70,7 @@ def train(T,
         losses.append(loss.cpu().item())
         # testing
         if idx%10 == 0:
+            fbsde.eval()
             with torch.no_grad():
                 x0 = sample_x0(5000, d, device, lognormal=False)
                 if method == 'bsde':
@@ -83,6 +85,7 @@ def train(T,
     
     
     x0 = sample_x0(1, d, device, lognormal=False)
+    fbsde.eval()
     discounted_payoff, discounted_payoff_cv = fbsde.unbiased_price(ts=ts, x0=x0, option=option, MC_samples=10**6, method=method)
     variance_red_factor = discounted_payoff.var() / discounted_payoff_cv.var()
     results = {'discounted_payoff':discounted_payoff.mean().item(), 
