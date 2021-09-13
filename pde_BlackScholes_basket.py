@@ -49,9 +49,9 @@ def train(T,
     K = 0.7 * d
     option = Basket(K=K)
 
-    fbsde = FBSDE(d, mu, sigma, ffn_hidden)
+    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep = True) 
     fbsde.to(device)
-    optimizer = torch.optim.RMSprop(fbsde.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(fbsde.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
 
     

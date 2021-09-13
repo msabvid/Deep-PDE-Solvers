@@ -4,21 +4,24 @@ import signatory
 from typing import Tuple, Optional, List
 from abc import abstractmethod
 
-from lib.networks import FFN
+from lib.networks import FFN, FFN_net_per_timestep
 from lib.options import BaseOption
 
 
 
 class FBSDE(nn.Module):
 
-    def __init__(self, d: int, mu: float, ffn_hidden: List[int]):
+    def __init__(self, d: int, mu: float, ffn_hidden: List[int], ts: torch.Tensor = None, net_per_timestep: bool = False):
         super().__init__()
         self.d = d
         self.mu = mu # risk free rate
         
-
-        self.f = FFN(sizes = [d+1]+ffn_hidden+[1]) # +1 is for time
-        self.dfdx = FFN(sizes = [d+1]+ffn_hidden+[2])
+        if net_per_timestep and ts is not None:
+            self.f = FFN_net_per_timestep(sizes=[d+1]+ffn_hidden+[1], ts=ts)
+            self.dfdx = FFN_net_per_timestep(sizes = [d+1]+ffn_hidden+[2], ts=ts)
+        else:
+            self.f = FFN(sizes = [d+1]+ffn_hidden+[1]) # +1 is for time
+            self.dfdx = FFN(sizes = [d+1]+ffn_hidden+[2])
 
     @abstractmethod
     def sdeint(self, ts, x0):
@@ -43,11 +46,14 @@ class FBSDE(nn.Module):
         payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
         device = x.device
         batch_size = x.shape[0]
-        t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
-        tx = torch.cat([t,x],2)
+        if isinstance(self.f, nn.ModuleList):
+            t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
+            input_ = torch.cat([t,x],2)
+        else:
+            input_ = x
         
-        Y = self.f(tx) # (batch_size, L, 1)
-        Z = self.dfdx(tx) # (batch_size, L, dim)
+        Y = self.f(input_) # (batch_size, L, 1)
+        Z = self.dfdx(input_) # (batch_size, L, dim)
 
         loss_fn = nn.MSELoss()
         loss = 0
@@ -79,9 +85,12 @@ class FBSDE(nn.Module):
         payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
         device = x.device
         batch_size = x.shape[0]
-        t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
-        tx = torch.cat([t,x],2)
-        Y = self.f(tx) # (batch_size, L, 1)
+        if isinstance(self.f, nn.ModuleList): 
+            input_ = x
+        else:
+            t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
+            input_ = torch.cat([t,x],2)
+        Y = self.f(input_) # (batch_size, L, 1)
 
         loss_fn = nn.MSELoss()
         loss = 0
@@ -120,10 +129,16 @@ class FBSDE(nn.Module):
             #tx.requires_grad_(True)
             Z = []
             for j in range(tx.shape[1]):
-                input_ = tx[:,j,:]
-                input_.requires_grad_(True)
-                Y = self.f(input_) # (batch_size, 1)
-                Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0][:,1:])
+                if isinstance(Y, nn.ModuleList):
+                    input_ = x[x:,j,:]
+                    input_.requires_grad_(True)
+                    Y = self.f(input_, j)
+                    Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0])
+                else:
+                    input_ = tx[:,j,:]
+                    input_.requires_grad_(True)
+                    Y = self.f(input_) # (batch_size, 1)
+                    Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0][:,1:])
             Z = torch.stack(Z, 1)
         else:
             raise ValueError('Unknown method {}'.format(method))
@@ -136,11 +151,10 @@ class FBSDE(nn.Module):
 
 
 
-
 class FBSDE_BlackScholes(FBSDE):
 
-    def __init__(self, d: int, mu: float, sigma: float, ffn_hidden: List[int]):
-        super(FBSDE_BlackScholes, self).__init__(d=d, mu=mu, ffn_hidden=ffn_hidden)
+    def __init__(self, d: int, mu: float, sigma: float, ffn_hidden: List[int], ts: torch.Tensor=None, net_per_timestep: bool=False):
+        super(FBSDE_BlackScholes, self).__init__(d=d, mu=mu, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep=net_per_timestep)
         self.sigma = sigma # change it to a torch.parameter to solve a parametric family of PPDEs
     
     def sdeint(self, ts, x0):

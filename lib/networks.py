@@ -30,6 +30,25 @@ class FFN(nn.Module):
         return self.net(x)
 
 
+class FFN_net_per_timestep(nn.Module):
+
+    def __init__(self, sizes, ts: torch.Tensor, activation=nn.ReLU, output_activation=nn.Identity):
+        super().__init__()
+        self.net = nn.ModuleList([FFN(sizes, activation, output_activation) for t in ts])
+
+    def forward(self, x, idt = None):
+
+        if x.dim() == 3: # x is of shape (batch_size, L, d)
+            Y = []
+            for i in range(x.shape[1]):
+                Y.append(self.net[i](x[:,i,:]))
+            Y = torch.stack(Y, 1)
+        elif x.dim() == 2 and idt is not None:
+            Y = self.net[idt](x)
+        else:
+            raise ValueError('idt needs to be passed')
+        return Y
+
 
 class RNN(nn.Module):
 
