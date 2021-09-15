@@ -49,7 +49,7 @@ def train(T,
     K = 0.7 * d
     option = Basket(K=K)
 
-    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep = True) 
+    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden)#, ts=ts, net_per_timestep = True) 
     fbsde.to(device)
     optimizer = torch.optim.Adam(fbsde.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
@@ -60,7 +60,7 @@ def train(T,
     for idx in range(max_updates):
         fbsde.train()
         optimizer.zero_grad()
-        x0 = sample_x0(batch_size, d, device, lognormal=False)
+        x0 = sample_x0(batch_size, d, device, lognormal=True)
         if method=="bsde":
             loss, _, _ = fbsde.bsdeint(ts=ts, x0=x0, option=option)
         else:
@@ -86,7 +86,7 @@ def train(T,
     
     x0 = sample_x0(1, d, device, lognormal=False)
     fbsde.eval()
-    discounted_payoff, discounted_payoff_cv = fbsde.unbiased_price(ts=ts, x0=x0, option=option, MC_samples=10**6, method=method)
+    discounted_payoff, discounted_payoff_cv = fbsde.unbiased_price(ts=ts, x0=x0, option=option, MC_samples=10000, method=method)
     variance_red_factor = discounted_payoff.var() / discounted_payoff_cv.var()
     results = {'discounted_payoff':discounted_payoff.mean().item(), 
             'discounted_payoff_cv':discounted_payoff_cv.mean().item(),
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     for i in range(args.n_seeds):
         seed = args.seed + i
         set_seed(seed)
-        results_path = os.path.join(args.base_dir, "BS", "exchange_{}".format(args.d), args.method, "seed{}".format(seed))
+        results_path = os.path.join(args.base_dir, "BS", "basket_{}".format(args.d), args.method, "seed{}".format(seed))
         if not os.path.exists(results_path):
             os.makedirs(results_path)
 

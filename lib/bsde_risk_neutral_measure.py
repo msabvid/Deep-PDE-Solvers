@@ -18,10 +18,10 @@ class FBSDE(nn.Module):
         
         if net_per_timestep and ts is not None:
             self.f = FFN_net_per_timestep(sizes=[d]+ffn_hidden+[1], ts=ts)
-            self.dfdx = FFN_net_per_timestep(sizes = [d]+ffn_hidden+[2], ts=ts)
+            self.dfdx = FFN_net_per_timestep(sizes = [d]+ffn_hidden+[d], ts=ts)
         else:
             self.f = FFN(sizes = [d+1]+ffn_hidden+[1]) # +1 is for time
-            self.dfdx = FFN(sizes = [d+1]+ffn_hidden+[2])
+            self.dfdx = FFN(sizes = [d+1]+ffn_hidden+[d])
 
     @abstractmethod
     def sdeint(self, ts, x0):
@@ -47,10 +47,10 @@ class FBSDE(nn.Module):
         device = x.device
         batch_size = x.shape[0]
         if isinstance(self.f, FFN_net_per_timestep):
+            input_ = x
+        else:
             t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
             input_ = torch.cat([t,x],2)
-        else:
-            input_ = x
         
         Y = self.f(input_) # (batch_size, L, 1)
         Z = self.dfdx(input_) # (batch_size, L, dim)
@@ -116,12 +116,13 @@ class FBSDE(nn.Module):
         """
         assert x0.shape[0] == 1, "we need just 1 sample"
         x0 = x0.repeat(MC_samples, 1)
-        x, brownian_increments = self.sdeint(ts, x0)
+        with torch.no_grad():
+            x, brownian_increments = self.sdeint(ts, x0)
         payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
         device = x.device
         batch_size = x.shape[0]
         t = ts.reshape(1,-1,1).repeat(batch_size,1,1)
-        tx = torch.cat([t,x],2) # (batch_size, L, dim)
+        tx = torch.cat([t,x],2) # (batch_size, L, dim+1)
         if method == 'bsde':
             with torch.no_grad():
                 Z = self.dfdx(tx) # (batch_size, L, dim)
@@ -130,12 +131,12 @@ class FBSDE(nn.Module):
             Z = []
             for idt, t in enumerate(ts[:-1]):
                 if isinstance(self.f, FFN_net_per_timestep):
-                    input_ = x[:,idt,:]
+                    input_ = x[:,idt,:].detach()
                     input_.requires_grad_(True)
                     Y = self.f(input_, idt)
                     Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0])
                 else:
-                    input_ = tx[:,idt,:]
+                    input_ = tx[:,idt,:].detach()
                     input_.requires_grad_(True)
                     Y = self.f(input_) # (batch_size, 1)
                     Z.append(torch.autograd.grad(Y.sum(), input_, allow_unused=True)[0][:,1:])
@@ -146,8 +147,10 @@ class FBSDE(nn.Module):
         for idx,t in enumerate(ts[:-1]):
             discount_factor = torch.exp(-self.mu*t)
             stoch_int += discount_factor * torch.sum(Z[:,idx,:]*brownian_increments[:,idx,:], 1, keepdim=True)
-        
-        return torch.exp(-self.mu*ts[-1])*payoff, torch.exp(-self.mu*ts[-1])*payoff-stoch_int # stoch_int has expected value 0, thus it doesn't add any bias to the MC estimator, and it is correlated with payoff
+        mc = torch.exp(-self.mu*ts[-1])*payoff
+        cv = stoch_int
+        cv_mult = torch.mean((mc-mc.mean())*(cv-cv.mean())) / cv.var() # optimal multiplier. cf. Belomestny book
+        return mc, mc - cv_mult*stoch_int # stoch_int has expected value 0, thus it doesn't add any bias to the MC estimator, and it is correlated with payoff
 
 
 
