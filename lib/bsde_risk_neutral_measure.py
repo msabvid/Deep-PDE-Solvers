@@ -125,7 +125,10 @@ class FBSDE(nn.Module):
         tx = torch.cat([t,x],2) # (batch_size, L, dim+1)
         if method == 'bsde':
             with torch.no_grad():
-                Z = self.dfdx(tx) # (batch_size, L, dim)
+                if isinstance(self.dfdx, FFN_net_per_timestep):
+                    Z = self.dfdx(x)
+                else:
+                    Z = self.dfdx(tx) # (batch_size, L, dim)
         elif method == 'l2_proj':
             #tx.requires_grad_(True)
             Z = []

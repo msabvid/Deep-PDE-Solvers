@@ -46,13 +46,15 @@ def train(T,
     logfile = os.path.join(base_dir, "log.txt")
     ts = torch.linspace(0,T,n_steps+1, device=device)
     option = Exchange()
-    fbsde = FBSDE(d, mu, sigma, ffn_hidden)
+    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep=True)
     fbsde.to(device)
-    optimizer = torch.optim.RMSprop(fbsde.parameters(), lr=0.0005)
+    optimizer = torch.optim.Adam(fbsde.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
     
     pbar = tqdm.tqdm(total=max_updates)
     losses = []
     for idx in range(max_updates):
+        fbsde.train()
         optimizer.zero_grad()
         x0 = sample_x0(batch_size, d, device, lognormal=True)
         if method=="bsde":
@@ -61,6 +63,7 @@ def train(T,
             loss, _, _ = fbsde.l2_proj(ts=ts, x0=x0, option=option)
         loss.backward()
         optimizer.step()
+        scheduler.step()
         losses.append(loss.cpu().item())
         # testing
         if idx%10 == 0:
@@ -152,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', default=500, type=int)
     parser.add_argument('--d', default=2, type=int)
     parser.add_argument('--max_updates', default=5000, type=int)
-    parser.add_argument('--ffn_hidden', default=[20,20,20], nargs="+", type=int, help="hidden sizes of ffn networks approximations")
+    parser.add_argument('--ffn_hidden', default=[20,20], nargs="+", type=int, help="hidden sizes of ffn networks approximations")
     parser.add_argument('--T', default=0.5, type=float)
     parser.add_argument('--n_steps', default=50, type=int, help="number of steps in time discrretisation")
     parser.add_argument('--mu', default=0.05, type=float, help="risk free rate")
@@ -176,7 +179,7 @@ if __name__ == "__main__":
     for i in range(args.n_seeds):
         seed = args.seed + i
         set_seed(seed)
-        results_path = os.path.join(args.base_dir, "BS", "basket_{}".format(args.d), args.method, "seed{}".format(seed))
+        results_path = os.path.join(args.base_dir, "BS", "exchange_{}".format(args.d), args.method, "seed{}".format(seed))
         if not os.path.exists(results_path):
             os.makedirs(results_path)
 

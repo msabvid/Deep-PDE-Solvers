@@ -18,7 +18,7 @@ def sample_x0(batch_size, dim, device, lognormal: bool = True):
         mu = 0.08
         tau = 0.1
         z = torch.randn(batch_size, dim, device=device)
-        x0 = torch.exp((mu-0.5*sigma**2)*tau + 0.3*math.sqrt(tau)*z) # lognormal
+        x0 = 0.7 * torch.exp((mu-0.5*sigma**2)*tau + 0.3*math.sqrt(tau)*z) # lognormal
     else:
         x0 = 0.7 * torch.ones(batch_size, dim, device=device)
     return x0
@@ -49,7 +49,7 @@ def train(T,
     K = 0.7 * d
     option = Basket(K=K)
 
-    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden)#, ts=ts, net_per_timestep = True) 
+    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep = True) 
     fbsde.to(device)
     optimizer = torch.optim.Adam(fbsde.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
@@ -67,6 +67,7 @@ def train(T,
             loss, _, _ = fbsde.l2_proj(ts=ts, x0=x0, option=option)
         loss.backward()
         optimizer.step()
+        scheduler.step()
         losses.append(loss.cpu().item())
         # testing
         if idx%10 == 0:
@@ -121,8 +122,8 @@ if __name__ == "__main__":
     parser.add_argument('--d', default=2, type=int)
     parser.add_argument('--max_updates', default=5000, type=int)
     parser.add_argument('--ffn_hidden', default=[20,20], nargs="+", type=int, help="hidden sizes of ffn networks approximations")
-    parser.add_argument('--T', default=1, type=float)
-    parser.add_argument('--n_steps', default=100, type=int, help="number of steps in time discrretisation")
+    parser.add_argument('--T', default=1., type=float)
+    parser.add_argument('--n_steps', default=50, type=int, help="number of steps in time discrretisation")
     parser.add_argument('--mu', default=0.5, type=float, help="risk free rate")
     parser.add_argument('--sigma', default=1., type=float, help="risk free rate")
     parser.add_argument('--method', default="bsde", type=str, help="learning method", choices=["bsde","l2_proj"])

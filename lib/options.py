@@ -53,8 +53,8 @@ class Exchange(BaseOption):
         payoff: torch.Tensor
             exchange option payoff. Tensor of shape (batch_size,1)
         """
-        assert x.shape[1]==2, "need dim=2"
-        payoff = torch.clamp(x[:,0]-x[:,1], 0)
+        #assert x.shape[1]==2, "need dim=2"
+        payoff = torch.clamp(x[:,0]-x[:,1:].mean(1), 0)
         return payoff.unsqueeze(1) # (batch_size, 1)
 
 
