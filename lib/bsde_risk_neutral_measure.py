@@ -101,6 +101,19 @@ class FBSDE(nn.Module):
             loss += loss_fn(pred, target)
         return loss, Y, payoff
 
+    def unbiased_price_mc(self, ts: torch.Tensor, x0: torch.Tensor, option: BaseOption, MC_samples: int, antithetic: bool = False):
+        """
+        We calculate Monte Carlo approimation of the price
+        """
+        assert x0.shape[0] == 1, "we need just 1 sample"
+        x0 = x0.repeat(MC_samples, 1)
+        with torch.no_grad():
+            x, brownian_increments = self.sdeint(ts, x0, antithetic=antithetic)
+        payoff = option.payoff(x[:,-1,:]) # (batch_size, 1)
+        mc = torch.exp(-self.mu*ts[-1])*payoff
+        return mc
+
+
     def unbiased_price(self, ts: torch.Tensor, x0:torch.Tensor, option: BaseOption, MC_samples: int, method: str = 'bsde'):
         """
         We calculate an unbiased estimator of the price at time t=0 (for now) using Monte Carlo, and the stochastic integral as a control variate
@@ -163,7 +176,7 @@ class FBSDE_BlackScholes(FBSDE):
         super(FBSDE_BlackScholes, self).__init__(d=d, mu=mu, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep=net_per_timestep)
         self.sigma = sigma # change it to a torch.parameter to solve a parametric family of PPDEs
     
-    def sdeint(self, ts, x0):
+    def sdeint(self, ts, x0, antithetic = False):
         """
         Euler scheme to solve the SDE.
         Parameters
@@ -178,13 +191,20 @@ class FBSDE_BlackScholes(FBSDE):
         ----
         I am assuming uncorrelated Brownian motion
         """
-        x = x0.unsqueeze(1)
+        if antithetic:
+            x = torch.cat([x0.unsqueeze(1), x0.unsqueeze(1)], dim=0)
+        else:
+            x = x0.unsqueeze(1)
         batch_size = x.shape[0]
         device = x.device
         brownian_increments = torch.zeros(batch_size, len(ts), self.d, device=device)
         for idx, t in enumerate(ts[1:]):
             h = ts[idx+1]-ts[idx]
-            brownian_increments[:,idx,:] = torch.randn(batch_size, self.d, device=device)*torch.sqrt(h)
+            if antithetic:
+                brownian_increments[:batch_size//2,idx,:] = torch.randn(batch_size//2, self.d, device=device)*torch.sqrt(h)
+                brownian_increments[-batch_size//2:,idx,:] = -brownian_increments[:batch_size//2, idx, :].clone()
+            else:
+                brownian_increments[:,idx,:] = torch.randn(batch_size, self.d, device=device)*torch.sqrt(h)
             x_new = x[:,-1,:] + self.mu*x[:,-1,:]*h + self.sigma*x[:,-1,:]*brownian_increments[:,idx,:]
             x = torch.cat([x, x_new.unsqueeze(1)],1)
         return x, brownian_increments
