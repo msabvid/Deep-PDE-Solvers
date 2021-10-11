@@ -2,6 +2,8 @@ import torch
 from dataclasses import dataclass
 from abc import abstractmethod
 from typing import List
+from scipy.stats import norm
+import numpy as np
 
 @dataclass
 class BaseOption:
@@ -56,6 +58,35 @@ class Exchange(BaseOption):
         #assert x.shape[1]==2, "need dim=2"
         payoff = torch.clamp(x[:,0]-x[:,1:].mean(1), 0)
         return payoff.unsqueeze(1) # (batch_size, 1)
+
+    def margrabe_formula(self, S1, S2, tau, r, sigma):
+        """
+        Margrabe formula for exchange option price on two assets, assuming 
+        - Geometric Brownian motion
+        - Drift of assets unders risk-neutral measure is r
+        - BOth assets have the same sigma
+        
+        Parameters
+        ----------
+        S1: float
+        S2: float
+        tau: float
+            Time to maturity
+        r: float
+            risk free rate
+        sigma: float
+            risk free rate
+        """
+        N = norm()
+        sigma_ = np.sqrt(2*sigma**2)
+        d1 = (sigma_**2 / 2 * tau) / (sigma_ * np.sqrt(tau))
+        d2 = -d1
+        price = S1 * N.cdf(d1) - S2 * N.cdf(d2)
+        return price
+
+
+
+
 
 
 class Basket(BaseOption):

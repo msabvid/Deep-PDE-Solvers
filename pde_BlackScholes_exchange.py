@@ -1,3 +1,7 @@
+"""
+Solver of Black-Scholes PDE using BSDE method or L2-projection of X_T to approximate the conditional expecation E(X_T | F_t)
+"""
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -9,7 +13,7 @@ import pandas as pd
 
 from lib.bsde_risk_neutral_measure import FBSDE_BlackScholes as FBSDE
 from lib.options import Exchange
-from lib.utils import set_seed
+from lib.utils import set_seed, write
 
 
 def sample_x0(batch_size, dim, device, lognormal: bool = True):
@@ -24,11 +28,6 @@ def sample_x0(batch_size, dim, device, lognormal: bool = True):
     return x0
     
 
-def write(msg, logfile, pbar):
-    pbar.write(msg)
-    with open(logfile, "a") as f:
-        f.write(msg)
-        f.write("\n")
 
 def train(T,
         n_steps,
@@ -44,12 +43,26 @@ def train(T,
         ):
     
     logfile = os.path.join(base_dir, "log.txt")
+    msefile = os.path.join(base_dir, "mse.txt")
+    if os.path.exists(msefile):
+        os.remove(msefile)
+        with open(msefile,'w') as f:
+            f.write('it,ground_truth,pred,mse\n')
+    if os.path.exists(logfile):
+        os.remove(logfile)
+
     ts = torch.linspace(0,T,n_steps+1, device=device)
     option = Exchange()
-    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep=True)
+    fbsde = FBSDE(d=d, mu=mu, sigma=sigma, ffn_hidden=ffn_hidden, ts=ts, net_per_timestep=False)
     fbsde.to(device)
     optimizer = torch.optim.Adam(fbsde.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
+    
+    if d==2:
+        ground_truth = option.margrabe_formula(S1=1, S2=1, tau=T, r=mu, sigma=sigma)
+    else:
+        ground_truth = fbsde.unbiased_price_mc(ts=ts, x0=torch.tensor([[1.,1.]], device=device), option=option, MC_samples=100000, antithetic=False).mean()
+        
     
     pbar = tqdm.tqdm(total=max_updates)
     losses = []
@@ -78,6 +91,9 @@ def train(T,
             
             pbar.update(10)
             write("loss={:.4f}, Monte Carlo price={:.4f}, predicted={:.4f}".format(loss.item(),payoff.item(), Y[0,0,0].item()),logfile,pbar)
+            mse = (Y[0,0,0].item() - ground_truth)**2
+            with open(msefile,'a') as f:
+                f.write('{},{},{},{}\n'.format(idx,ground_truth,Y[0,0,0].item(),mse))
     
     x0 = sample_x0(1, d, device, lognormal=False)
     fbsde.eval()

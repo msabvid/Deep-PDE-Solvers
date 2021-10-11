@@ -50,7 +50,7 @@ class DGM_Layer(nn.Module):
 
 class Net_DGM(nn.Module):
 
-    def __init__(self, dim_x, dim_S, activation='Sigmoid'):
+    def __init__(self, dim_x, dim_S, activation='Tanh'):
         super(Net_DGM, self).__init__()
 
         self.dim = dim_x
@@ -112,13 +112,14 @@ class PDE_DGM_BlackScholes(nn.Module):
     def fit(self, max_updates: int, batch_size: int, option, device):
 
         optimizer = torch.optim.Adam(self.net_dgm.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = (10000,),gamma=0.1)
         loss_fn = nn.MSELoss()
         
         pbar = tqdm.tqdm(total=max_updates)
         for it in range(max_updates):
             optimizer.zero_grad()
 
-            input_domain = 0.5 + torch.rand(batch_size, self.d, device=device, requires_grad=True)
+            input_domain = 0.5 + 2*torch.rand(batch_size, self.d, device=device, requires_grad=True)
             t0, T = self.ts[0], self.ts[-1]
             t = t0 + T*torch.rand(batch_size, 1, device=device, requires_grad=True)
             u_of_tx = self.net_dgm(t, input_domain)
@@ -129,7 +130,7 @@ class PDE_DGM_BlackScholes(nn.Module):
             pde = grad_u_t + torch.sum(self.mu*input_domain.detach()*grad_u_x,1,keepdim=True) + 0.5*self.sigma**2 * laplacian - self.mu * u_of_tx
             MSE_functional = loss_fn(pde, target_functional)
             
-            input_terminal = 0.5 + torch.rand(batch_size, self.d, device=device, requires_grad=True)
+            input_terminal = 0.5 + 2*torch.rand(batch_size, self.d, device=device, requires_grad=True)
             t = torch.ones(batch_size, 1, device=device) * T
             u_of_tx = self.net_dgm(t, input_terminal)
             target_terminal = option.payoff(input_terminal)
@@ -138,6 +139,7 @@ class PDE_DGM_BlackScholes(nn.Module):
             loss = MSE_functional + MSE_terminal
             loss.backward()
             optimizer.step()
+            scheduler.step()
             if it%10 == 0:
                 pbar.update(10)
                 pbar.write("Iteration: {}/{}\t MSE functional: {:.4f}\t MSE terminal: {:.4f}\t Total Loss: {:.4f}".format(it, max_updates, MSE_functional.item(), MSE_terminal.item(), loss.item()))
