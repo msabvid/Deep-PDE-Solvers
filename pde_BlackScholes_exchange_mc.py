@@ -1,3 +1,7 @@
+"""
+Variance reduction of Monte Carlo approximation of solution using Antithetic Paths
+"""
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -99,6 +103,7 @@ if __name__ == "__main__":
         device="cpu"
     
     for i in range(args.n_seeds):
+        print(i)
         seed = args.seed + i
         set_seed(seed)
         results_path = os.path.join(args.base_dir, "BS", "exchange_{}".format(args.d), "antithetic", "seed{}".format(seed))

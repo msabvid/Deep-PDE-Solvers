@@ -1,3 +1,7 @@
+"""
+Solver of BS PDE using Deep Galerkin method
+"""
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -65,10 +69,6 @@ def train(T,
             'var_discounted_payoff_cv':discounted_payoff_cv.var().item()}
     pd.DataFrame(results, index=[0]).to_csv(os.path.join(base_dir, 'results.csv'))
 
-    result = {"state":fbsde.state_dict(),
-            "loss":losses}
-
-    torch.save(result, os.path.join(base_dir, "result.pth.tar"))
     result = {"state":pde_solver.state_dict()}
     torch.save(result, os.path.join(base_dir, "result.pth.tar"))
 
